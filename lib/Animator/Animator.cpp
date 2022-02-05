@@ -1,4 +1,4 @@
-#include <AnimatorSimple.h>
+#include <Animator.h>
 
 const uint8_t MODE_FADE = 0x00;
 const uint8_t MODE_RETAIN = 0x01;
@@ -28,21 +28,17 @@ uint16_t readInt16(File& file) {
   return converter.integer;
 }
 
-AnimatorSimple::AnimatorSimple() {}
-AnimatorSimple::AnimatorSimple(char fileName[]) {
-  loadAnimation(fileName);
-}
-AnimatorSimple::AnimatorSimple(uint16_t (*xyFunc)(uint8_t x, uint8_t y)) {
+Animator::Animator() {}
+Animator::Animator(uint16_t (*xyFunc)(uint8_t x, uint8_t y)) {
   xy = xyFunc;
 }
 
-void AnimatorSimple::loadAnimation(char fileName[]) {
-  SD.begin(4);
-  file = SD.open(fileName, FILE_READ);
-  loadAnimationInfo();
+void Animator::loadAnimation(File& file) {
+  file = file;
+  loadAnimationInfo(file);
 }
 
-void AnimatorSimple::loadAnimationInfo() {
+void Animator::loadAnimationInfo(File& file) {
   mode = readInt8(file);
   fps = readInt8(file);
   frameAmount = readInt16(file);
@@ -50,10 +46,10 @@ void AnimatorSimple::loadAnimationInfo() {
   frame = 0;
 }
 
-void AnimatorSimple::renderFrame(CRGB *leds, uint16_t numLeds) {
+void Animator::renderFrame(CRGB *leds, uint16_t numLeds, File& file) {
   if (frame == frameAmount - 1) {
     file.seek(0);
-    loadAnimationInfo();
+    loadAnimationInfo(file);
   }
   framePixelAmount = readInt16(file);
 

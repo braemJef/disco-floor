@@ -2,7 +2,12 @@
 #include <FastLED.h>
 #include <SD.h>
 #include <SPI.h>
-#include <AnimatorSimple.h>
+#include <Animator.h>
+
+// User input config
+#define POTENTIOMETER_PIN A0
+#define BUTTON_PIN 2
+int prevButtonState = HIGH;
 
 // Led matrix config
 #define NUM_ROWS 10
@@ -13,6 +18,7 @@
 CRGB leds[NUM_LEDS];
 
 // set up variables using the SD utility library functions:
+File root;
 File myFile;
 const int chipSelect = 4;
 
@@ -32,7 +38,7 @@ uint16_t XY(uint8_t x, uint8_t y) {
   return (x * 10) + y;
 }
 
-AnimatorSimple simple;
+Animator animator;
 
 void setup() {
   // Only in development
@@ -40,53 +46,57 @@ void setup() {
   Serial.begin(9600);
   Serial.println("Serial connected.");
 
+  // Initialize button to cycle animations
+  pinMode(BUTTON_PIN, INPUT);
+
   // Initialize LED array
   FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
   FastLED.setBrightness(8);
   Serial.println("Initialized FastLED.");
 
-  simple = AnimatorSimple(XY);
-  simple.loadAnimation("BREND002.bin");
+  // Initialize root folder
+  SD.begin(4);
+  root = SD.open("ANIM");
+  myFile = root.openNextFile();
+  if (!myFile) {
+      Serial.println("Could not open first file.");
+  } else {
+    Serial.println((String)"Opened first file: " + myFile.name());
+  }
 
-  Serial.println((String)"MODE: " + simple.mode);
-  Serial.println((String)"FPS: " + simple.fps);
-  Serial.println((String)"FRAME_AMOUNT: " + simple.frameAmount);
+  animator = Animator(XY);
+  animator.loadAnimation(myFile);
 }
 
 void loop() {
   EVERY_N_MILLISECONDS(1000 / fps) {
-    simple.renderFrame(leds, NUM_LEDS);
+    animator.renderFrame(leds, NUM_LEDS, myFile);
     FastLED.show();
   }
-  // EVERY_N_MILLISECONDS(1000 / fps) {
-  //   if (myFile.available()) {
-  //     FastLED.clear();
-  //     converter16.array[0] = myFile.read();
-  //     converter16.array[1] = myFile.read();
-  //     uint16_t pixelAmount = converter16.integer;
-  //     converter16.array[0] = myFile.read();
-  //     converter16.array[1] = myFile.read();
-  //     uint16_t repeat = converter16.integer;
 
-  //     for (uint16_t i = 0; i < pixelAmount; i++) {
-  //       uint8_t x = myFile.read();
-  //       uint8_t y = myFile.read();
-  //       uint8_t r = myFile.read();
-  //       uint8_t g = myFile.read();
-  //       uint8_t b = myFile.read();
-  //       leds[XY(x, y)] = CRGB(r, g, b);
-  //     }
-  //     FastLED.show();
-  //   } else {
-  //       myFile = SD.open("BRENT002.bin", FILE_READ);
-  //       mode = myFile.read();
-  //       fps = myFile.read();
-  //       converter16.array[0] = myFile.read();
-  //       converter16.array[1] = myFile.read();
-  //       frameAmount = converter16.integer;
-  //       Serial.println((String)"MODE: " + mode);
-  //       Serial.println((String)"FPS: " + fps);
-  //       Serial.println((String)"FRAME_AMOUNT: " + frameAmount);
-  //   }
-  // }
+  // Check for button press and potentiometer change very 16ms
+  // 30fps
+  EVERY_N_MILLISECONDS(1000 / 60) {
+    int newButtonState = digitalRead(BUTTON_PIN);
+
+    if (newButtonState == LOW) {
+      prevButtonState = LOW;
+    }
+
+    if (newButtonState == HIGH && prevButtonState == LOW) {
+      prevButtonState = HIGH;
+      myFile = root.openNextFile();
+      if (!myFile) {
+        root.rewindDirectory();
+        myFile = root.openNextFile();
+      Serial.println((String)"Could not open next file, rewind directory.");
+      }
+      animator.loadAnimation(myFile);
+      Serial.println((String)"Opened next file: " + myFile.name());
+    }
+
+    int sensorValue = analogRead(POTENTIOMETER_PIN);
+    int brightness = map(sensorValue, 0, 1023, 8, 204);
+    FastLED.setBrightness(brightness);
+  }
 }
