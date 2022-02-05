@@ -51,7 +51,9 @@ void setup() {
 
   // Initialize LED array
   FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
-  FastLED.setBrightness(8);
+  FastLED.setBrightness(16);
+  FastLED.setCorrection(TypicalLEDStrip);
+
   Serial.println("Initialized FastLED.");
 
   // Initialize root folder
