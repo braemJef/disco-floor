@@ -42,6 +42,12 @@ void Animator::loadAnimationInfo(File& file) {
   mode = readInt8(file);
   fps = readInt8(file);
   frameAmount = readInt16(file);
+  fadePercentage = readInt8(file);
+
+  // Read unused bytes
+  for (uint8_t i = 0; i < 11; i++) {
+    readInt8(file);
+  }
 
   frame = 0;
 }
@@ -52,6 +58,10 @@ void Animator::renderFrame(CRGB *leds, uint16_t numLeds, File& file) {
     loadAnimationInfo(file);
   }
   framePixelAmount = readInt16(file);
+  // Read unused bytes
+  for (uint8_t i = 0; i < 6; i++) {
+    readInt8(file);
+  }
 
   if (mode == MODE_RETAIN) {
     // Do nothing

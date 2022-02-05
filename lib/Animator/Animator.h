@@ -19,6 +19,7 @@ class Animator {
     uint8_t mode;
     uint8_t fps;
     uint16_t frameAmount;
+    uint16_t fadePercentage;
 
     uint16_t frame;
     uint16_t framePixelAmount;
