@@ -3,10 +3,26 @@
 #include <SD.h>
 #include <SPI.h>
 #include <Animator.h>
+#include <Wire.h>
+#include <Adafruit_SSD1306.h>
+
+// Screen messages
+#define EMPTY_LINE "                    "
+#define SCREEN_INITIALIZE_FAILED "Screen boot failed"
+#define SCREEN_INITIALIZE_SUCCES "I) Screen booted"
+#define MATRIX_INITIALIZE_TITLE "I) Init LEDs"
+#define MATRIX_INITIALIZE_WIDTH "I)   Width: "
+#define MATRIX_INITIALIZE_HEIGHT "I)   Height: "
+#define SD_INITIALIZE_FAILED "E) FAILED MICRO SD"
+#define SD_INITIALIZE_SUCCESS "I) Micro SD booted"
+#define SD_OPENED_FILE "I)   F: "
+#define WAITING_FOR_RESTART "I) Please restart..."
+#define STARTUP_SUCCESS "I) Successfull boot!"
 
 // User input config
 #define POTENTIOMETER_PIN A0
 #define BUTTON_PIN 2
+
 int prevButtonState = HIGH;
 
 // Led matrix config
@@ -17,12 +33,30 @@ int prevButtonState = HIGH;
 
 CRGB leds[NUM_LEDS];
 
+// I2C Screen config
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+#define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
+#define SCREEN_ADDRESS 0x3C
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+uint16_t lines = 0;
+void displayprintln(String str) {
+  display.setCursor(0, (lines % 8) * 8);
+  display.print(EMPTY_LINE);
+  display.setCursor(0, (lines % 8) * 8);
+  display.print(str);
+  display.display();
+  if (lines > 7) {
+    display.ssd1306_command(SSD1306_SETSTARTLINE | ((lines % 8) + 1) * 8);
+  }
+  lines++;
+}
+
 // set up variables using the SD utility library functions:
 File root;
 File myFile;
 const int chipSelect = 4;
-
-uint16_t fps = 24;
 
 uint16_t XY(uint8_t x, uint8_t y) {
   if (x > NUM_COLUMNS) {
@@ -39,12 +73,25 @@ uint16_t XY(uint8_t x, uint8_t y) {
 }
 
 Animator animator;
+uint8_t fps = 1;
+uint32_t lastRender = 0;
 
 void setup() {
+  bool ready = true;
   // Only in development
   // Initialize serial connection
   Serial.begin(9600);
   Serial.println("Serial connected.");
+
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(SCREEN_INITIALIZE_FAILED);
+    ready = false;
+  } else {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(WHITE, 0);
+    displayprintln(SCREEN_INITIALIZE_SUCCES);
+  }
 
   // Initialize button to cycle animations
   pinMode(BUTTON_PIN, INPUT);
@@ -54,31 +101,66 @@ void setup() {
   FastLED.setBrightness(16);
   FastLED.setCorrection(TypicalLEDStrip);
 
-  Serial.println("Initialized FastLED.");
+  displayprintln(MATRIX_INITIALIZE_TITLE);
+  displayprintln((String)MATRIX_INITIALIZE_WIDTH + NUM_COLUMNS);
+  displayprintln((String)MATRIX_INITIALIZE_HEIGHT + NUM_ROWS);
 
   // Initialize root folder
   SD.begin(4);
-  root = SD.open("ANIM");
+  root = SD.open(F("ANIM"));
   myFile = root.openNextFile();
   if (!myFile) {
-      Serial.println("Could not open first file.");
+    ready = false;
+    displayprintln(SD_INITIALIZE_FAILED);
   } else {
-    Serial.println((String)"Opened first file: " + myFile.name());
+    displayprintln(SD_INITIALIZE_SUCCESS);
+    displayprintln((String)SD_OPENED_FILE + myFile.name());
   }
 
   animator = Animator(XY);
   animator.loadAnimation(myFile);
+  fps = animator.getFps();
+
+  // If any fatal error occured, stop any execution.
+  if (!ready) {
+    displayprintln(WAITING_FOR_RESTART);
+    while (true) {
+      delay(1000);
+    }
+  }
+  displayprintln(STARTUP_SUCCESS);
+  delay(1000);
+  displayprintln("I) 3...");
+  delay(1000);
+  displayprintln("I) 2...");
+  delay(1000);
+  displayprintln("I) 1...");
+  delay(1000);
+  display.clearDisplay();
+  display.ssd1306_command(SSD1306_SETSTARTLINE | 0);
 }
 
 void loop() {
-  EVERY_N_MILLISECONDS(1000 / fps) {
-    animator.renderFrame(leds, NUM_LEDS, myFile);
+  EVERY_N_SECONDS(2) {
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.println("====== STATUS ======");
+    display.println("");
+    display.println((String)"FPS: " + FastLED.getFPS() + "/" + animator.getFps());
+    display.println((String)"BRIGHTNESS: " + map(FastLED.getBrightness(), 8, 204, 1, 100) + "%");
+    display.println((String)"MODE: Animate");
+    display.println((String)"FILE: " + myFile.name());
+    display.display();
+  }
+
+  if (millis() > lastRender + (1000 / fps)) {
+    lastRender = millis();
     FastLED.show();
+    animator.renderFrame(leds, NUM_LEDS, myFile);
   }
 
   // Check for button press and potentiometer change very 16ms
-  // 30fps
-  EVERY_N_MILLISECONDS(1000 / 60) {
+  EVERY_N_MILLISECONDS(16) {
     int newButtonState = digitalRead(BUTTON_PIN);
 
     if (newButtonState == LOW) {
@@ -91,10 +173,9 @@ void loop() {
       if (!myFile) {
         root.rewindDirectory();
         myFile = root.openNextFile();
-      Serial.println((String)"Could not open next file, rewind directory.");
       }
       animator.loadAnimation(myFile);
-      Serial.println((String)"Opened next file: " + myFile.name());
+      fps = animator.getFps();
     }
 
     int sensorValue = analogRead(POTENTIOMETER_PIN);

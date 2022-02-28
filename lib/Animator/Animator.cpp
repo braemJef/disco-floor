@@ -84,3 +84,7 @@ void Animator::renderFrame(CRGB *leds, uint16_t numLeds, File& file) {
 
   frame++;
 }
+
+uint8_t Animator::getFps() {
+  return fps;
+}

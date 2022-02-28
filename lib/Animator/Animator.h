@@ -14,7 +14,9 @@ class Animator {
     void loadAnimation(File& file);
     void loadAnimationInfo(File& file);
     void renderFrame(CRGB *leds, uint16_t numLeds, File& file);
+    uint8_t getFps();
 
+  private:
     uint16_t (*xy)(uint8_t x, uint8_t y);
     uint8_t mode;
     uint8_t fps;
