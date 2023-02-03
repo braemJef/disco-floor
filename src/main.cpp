@@ -9,7 +9,9 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-#include <Fonts/FreeMono9pt7b.h>
+// For enable/disable Serial printing
+// #define Sprintln(a) (Serial.println(a))
+#define Sprintln(a) 
 
 // User input config
 #define KNOB_BRIGHTNESS_PIN A0
@@ -67,14 +69,14 @@ uint16_t XY(uint8_t x, uint8_t y) {
 void setup() {
   Serial.begin(115200); // initialize serial communication at 115200
   delay(5000); // Pause for 2 seconds
-  Serial.println("Serial connected.");
+  Sprintln("Serial connected.");
 
   // Initialize LCD screen
   if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    Serial.println(F("Initialization SSD1306 failed."));
+    Sprintln(F("Initialization SSD1306 failed."));
     for(;;);
   }
-  Serial.println("Initialized SSD1306 lcd.");
+  Sprintln("Initialized SSD1306 lcd.");
 
   display.clearDisplay();
   display.setTextSize(2);
@@ -95,24 +97,25 @@ void setup() {
   FastLED.setCorrection(TypicalLEDStrip);
   FastLED.clear();
   FastLED.show();
-  Serial.println("Initialized FastLED.");
+  Sprintln("Initialized FastLED.");
   
   // Initialize root folder
   if (!SD.begin(SD_CHIP_SELECT)) {
-    Serial.println("SD initialization failed.");
+    Sprintln("SD initialization failed.");
     while (1);
   }
 
   root = SD.open("ANIM");
   myFile = root.openNextFile();
   if (!myFile) {
-      Serial.println("Could not open first file.");
+      Sprintln("Could not open first file.");
   } else {
-    Serial.println((String)"Opened first file: " + myFile.name());
+    Sprintln((String)"Opened first file: " + myFile.name());
   }
 
   animator = Animator(XY);
   animator.loadAnimation(myFile);
+  fps = animator.fps;
 
   display.setTextSize(1);
   display.clearDisplay();
@@ -129,7 +132,7 @@ void draw() {
 }
 
 void cycleAnimButton() {
-  EVERY_N_MILLISECONDS(1000 / 60) {
+  EVERY_N_MILLISECONDS(1000 / 30) {
     int newButtonState = digitalRead(BUTTON_CYCLE_ANIM_PIN);
 
     if (newButtonState == LOW) {
@@ -142,17 +145,19 @@ void cycleAnimButton() {
       if (!myFile) {
         root.rewindDirectory();
         myFile = root.openNextFile();
-        Serial.println((String)"Could not open next file, rewind directory.");
+        Sprintln((String)"Could not open next file, rewind directory.");
       }
       animator.loadAnimation(myFile);
       fps = animator.fps;
-      Serial.println((String)"Opened next file: " + myFile.name());
+      FastLED.clear(true);
+      FastLED.show();
+      Sprintln((String)"Opened next file: " + myFile.name());
     }
   }
 }
 
 void modeSelectButton() {
-  EVERY_N_MILLISECONDS(1000 / 60) {
+  EVERY_N_MILLISECONDS(1000 / 30) {
     int newButtonState = digitalRead(BUTTON_MODE_SELECT_PIN);
 
     if (newButtonState == LOW) {
@@ -163,19 +168,19 @@ void modeSelectButton() {
       prevButtonModeSelectState = HIGH;
       if (currentMode == 1) {
         currentMode = 0;
-        Serial.println((String)"Changed mode to CYCLE");
+        Sprintln((String)"Changed mode to CYCLE");
       } else {
         currentMode = 1;
-        Serial.println((String)"Changed mode to SELECT");
+        Sprintln((String)"Changed mode to SELECT");
       }
     }
   }
 }
 
 void brightnessKnob() {
-  EVERY_N_MILLIS(1000 / 60) {
+  EVERY_N_MILLIS(1000 / 30) {
     int sensorValue = analogRead(KNOB_BRIGHTNESS_PIN);
-    int brightness = map(sensorValue, 0, 1023, 8, 204);
+    int brightness = map(sensorValue, 0, 1023, 12, 204);
     if (abs(brightness - FastLED.getBrightness()) > 2 || brightness == 204 || brightness == 8) {
       FastLED.setBrightness(brightness);
     }
@@ -183,10 +188,10 @@ void brightnessKnob() {
 }
 
 void lcd() {
-  EVERY_N_MILLIS(1000 / 15) {
+  EVERY_N_MILLIS(1000 / 10) {
     int currentFps = FastLED.getFPS();
     int currentBrightness = FastLED.getBrightness();
-    int realBrightness = map(currentBrightness, 8, 204, 1, 100);
+    int realBrightness = map(currentBrightness, 12, 204, 1, 100);
     String currentFile = myFile.name();
     String modeText = currentMode == 0 ? "cycling" : "select";
 
