@@ -53,10 +53,6 @@ void Animator::loadAnimationInfo(File& file) {
 }
 
 void Animator::renderFrame(CRGB *leds, uint16_t numLeds, File& file) {
-  if (frame == frameAmount - 1) {
-    file.seek(0);
-    loadAnimationInfo(file);
-  }
   framePixelAmount = readInt16(file);
   // Read unused bytes
   for (uint8_t i = 0; i < 6; i++) {
@@ -80,6 +76,12 @@ void Animator::renderFrame(CRGB *leds, uint16_t numLeds, File& file) {
     uint8_t g = readInt8(file);
     uint8_t b = readInt8(file);
     leds[xy(x, y)] = CRGB(r, g, b);
+  }
+
+  if (frame == frameAmount - 1) {
+    file.seek(0);
+    loadAnimationInfo(file);
+    return;
   }
 
   frame++;
