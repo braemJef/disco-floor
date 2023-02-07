@@ -19,13 +19,15 @@
 #define BUTTON_MODE_SELECT_PIN 7
 int prevButtonCycleAnimState = HIGH;
 int prevButtonModeSelectState = HIGH;
+uint8_t currentMode = 0; // 0 = cycle, 1 = select
+#define CYCLE_DURATION 30 // Cycle duration in seconds
+unsigned long newCycleMillis = 0;
 
 // SSD1306 config
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 #define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3C
-
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Led matrix config
@@ -33,12 +35,12 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define NUM_COLUMNS 32
 #define NUM_LEDS (NUM_ROWS * NUM_COLUMNS)
 #define DATA_PIN 0
-
+#define MIN_BRIGHTNESS 12
+#define MAX_BRIGHTNESS 255
 CRGB leds[NUM_LEDS];
 
 // SD reader config
 #define SD_CHIP_SELECT 21
-
 File root;
 File myFile;
 
@@ -46,11 +48,6 @@ File myFile;
 Animator animator;
 uint16_t fps = 24;
 unsigned long newMillis = 0;
-
-// Mode variables
-// 0 = cycle
-// 1 = select
-uint8_t currentMode = 0;
 
 uint16_t XY(uint8_t x, uint8_t y) {
   if (x > NUM_COLUMNS) {
@@ -131,6 +128,30 @@ void draw() {
   }
 }
 
+void openNextAnimation() {
+  myFile = root.openNextFile();
+  if (!myFile) {
+    root.rewindDirectory();
+    myFile = root.openNextFile();
+    Sprintln((String)"Could not open next file, rewind directory.");
+  }
+  animator.loadAnimation(myFile);
+  fps = animator.fps;
+  FastLED.clear(true);
+  FastLED.show();
+  Sprintln((String)"Opened next file: " + myFile.name());
+}
+
+void checkMode() {
+  if (currentMode = 0) {
+    unsigned long currentCycleMillis = millis();
+    if (currentCycleMillis > newCycleMillis && animator.cycle >= 1) {
+      newCycleMillis = currentCycleMillis + (CYCLE_DURATION * 1000);
+      openNextAnimation();
+    }
+  }
+}
+
 void cycleAnimButton() {
   EVERY_N_MILLISECONDS(1000 / 30) {
     int newButtonState = digitalRead(BUTTON_CYCLE_ANIM_PIN);
@@ -141,17 +162,7 @@ void cycleAnimButton() {
 
     if (newButtonState == HIGH && prevButtonCycleAnimState == LOW) {
       prevButtonCycleAnimState = HIGH;
-      myFile = root.openNextFile();
-      if (!myFile) {
-        root.rewindDirectory();
-        myFile = root.openNextFile();
-        Sprintln((String)"Could not open next file, rewind directory.");
-      }
-      animator.loadAnimation(myFile);
-      fps = animator.fps;
-      FastLED.clear(true);
-      FastLED.show();
-      Sprintln((String)"Opened next file: " + myFile.name());
+      openNextAnimation();
     }
   }
 }
@@ -180,8 +191,8 @@ void modeSelectButton() {
 void brightnessKnob() {
   EVERY_N_MILLIS(1000 / 30) {
     int sensorValue = analogRead(KNOB_BRIGHTNESS_PIN);
-    int brightness = map(sensorValue, 0, 1023, 12, 204);
-    if (abs(brightness - FastLED.getBrightness()) > 2 || brightness == 204 || brightness == 8) {
+    int brightness = map(sensorValue, 0, 1023, MIN_BRIGHTNESS, MAX_BRIGHTNESS);
+    if (abs(brightness - FastLED.getBrightness()) > 2 || brightness == MAX_BRIGHTNESS || brightness == MIN_BRIGHTNESS) {
       FastLED.setBrightness(brightness);
     }
   }
@@ -191,7 +202,7 @@ void lcd() {
   EVERY_N_MILLIS(1000 / 10) {
     int currentFps = FastLED.getFPS();
     int currentBrightness = FastLED.getBrightness();
-    int realBrightness = map(currentBrightness, 12, 204, 1, 100);
+    int realBrightness = map(currentBrightness, MIN_BRIGHTNESS, MAX_BRIGHTNESS, 1, 100);
     String currentFile = myFile.name();
     String modeText = currentMode == 0 ? "cycling" : "select";
 
@@ -222,5 +233,6 @@ void loop() {
   lcd();
   cycleAnimButton();
   modeSelectButton();
+  checkMode();
   brightnessKnob();
 }

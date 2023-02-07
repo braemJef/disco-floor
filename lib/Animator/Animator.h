@@ -23,4 +23,5 @@ class Animator {
 
     uint16_t frame;
     uint16_t framePixelAmount;
+    int32_t cycle;
 };

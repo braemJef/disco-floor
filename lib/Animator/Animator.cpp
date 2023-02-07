@@ -35,6 +35,7 @@ Animator::Animator(uint16_t (*xyFunc)(uint8_t x, uint8_t y)) {
 
 void Animator::loadAnimation(File& file) {
   file = file;
+  cycle = 0;
   loadAnimationInfo(file);
 }
 
@@ -50,6 +51,7 @@ void Animator::loadAnimationInfo(File& file) {
   }
 
   frame = 0;
+  cycle++;
 }
 
 void Animator::renderFrame(CRGB *leds, uint16_t numLeds, File& file) {
